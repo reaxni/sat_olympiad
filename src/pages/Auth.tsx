@@ -32,7 +32,7 @@ export function Auth() {
   return <main className="auth-layout">
     <section className="auth-story" aria-label="1609 SAT Olympiad">
       <div className="wordmark"><img className="brand-logo" src="/assets/logo1609.jpg" alt="" />1609 SAT Olympiad</div>
-      <div className="auth-story-copy"><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Vote For<br /><em>Jurek.</em></h1><h1>Vote For<br /><em>Adel.</em></h1></div>
+      <div className="auth-story-copy"><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Vote For<br /><em>Jurek.</em></h1><h1>Vote For<br /><em>Adele.</em></h1></div>
       <div className="auth-format"><span>02 <small>fixed sections</small></span><span>49 <small>questions</small></span><span>67 <small>minutes</small></span></div>
       <p className="auth-footnote">Independent Olympiad. Not an official SAT exam or score.</p>
     </section>
