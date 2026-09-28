@@ -15,8 +15,10 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         const api = await createApi();
-        const service = await api.getService({ signal: controller.signal });
-        const current = await api.getStudent({ signal: controller.signal });
+        const [service, current] = await Promise.all([
+          api.getService({ signal: controller.signal }),
+          api.getStudent({ signal: controller.signal }),
+        ]);
         if (!controller.signal.aborted) setState({ status: 'ready', api, service: service.data, student: current.data });
       } catch (error) {
         if (!controller.signal.aborted) setState({ status: 'error', message: errorMessage(error) });

@@ -2,15 +2,17 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useAuthenticatedApi } from '../api/context';
 import { ApiError, errorMessage, type ApiResponse } from '../api/client';
 import type { Answer, AnswerValue, Attempt, Eligibility, ExamSchedule, QuestionTools, SaveAnswerInput, SectionContent, ViolationReport } from '../domain/exam';
-import { createViolationDeduper } from './violationEvents';
+import { createViolationDeduper, shortcutViolation } from './violationEvents';
+import { eventLabel, loadPendingEvents, savePendingEvents } from './violationQueue';
 
 type Draft = { value: AnswerValue | null; markedForReview: boolean; tools?: QuestionTools };
 interface QueueEntry { draft: Draft; request?: SaveAnswerInput }
 interface ExamContextValue {
   schedule: ExamSchedule | null; eligibility: Eligibility | null; attempt: Attempt | null; content: SectionContent | null;
   loading: boolean; error: string; warning: string; now: number; pending: number; saveError: string;
+  violationCount: number; violationPending: number; violationLimitPending: boolean;
   drafts: Record<string, Draft>; refresh: () => Promise<void>; begin: () => Promise<void>; start: () => Promise<void>;
-  startExam: () => Promise<void>; fullscreenMode: 'not-entered' | 'active' | 'required' | 'unsupported' | 'denied'; returnToFullscreen: () => void;
+  startExam: () => Promise<void>; fullscreenMode: 'not-entered' | 'active' | 'required' | 'unsupported' | 'denied'; enterFullscreen: () => void; returnToFullscreen: () => void;
   focusReview: { state: 'checking' | 'ready'; counted: boolean; reason: string; remaining: number } | null; dismissFocusReview: () => void;
   submit: () => Promise<void>; updateAnswer: (questionId: string, draft: Draft) => void; retrySaving: () => Promise<void>;
 }
@@ -29,6 +31,7 @@ export function ExamProvider({ children }: { children: ReactNode }) {
   const stateVersion = useRef(0); const refreshing = useRef(false);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [warning, setWarning] = useState('');
   const [focusReview, setFocusReview] = useState<ExamContextValue['focusReview']>(null);
+  const [violationPending, setViolationPending] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({}); const [pending, setPending] = useState(0); const [saveError, setSaveError] = useState('');
   const queue = useRef(new Map<string, QueueEntry>()); const saving = useRef<Promise<void> | null>(null); const mounted = useRef(true);
   const anchor = useRef({ server: Date.now(), local: performance.now() }); const [now, setNow] = useState(Date.now());
@@ -190,7 +193,7 @@ export function ExamProvider({ children }: { children: ReactNode }) {
     }
   };
   const startExam = async () => {
-    requestFullscreenFromGesture(false);
+    if (!document.fullscreenElement) requestFullscreenFromGesture(false);
     if (!attemptRef.current) await begin();
     await start();
   };
@@ -226,45 +229,65 @@ export function ExamProvider({ children }: { children: ReactNode }) {
     if (phase !== 'in-progress' || !attempt?.id) return;
     const dedupe = createViolationDeduper();
     let wasFullscreen = Boolean(document.fullscreenElement);
-    let latestDecision: { counted: boolean; reason: string; remaining: number; receivedAt: number } | null = null;
-    const reports = new Map<string, ViolationReport>(); let sending: Promise<void> | null = null;
+    const reports = new Map(loadPendingEvents(attempt.id).map((event) => [event.eventId, event]));
+    setViolationPending(reports.size);
+    let sending: Promise<void> | null = null;
+    let blurTimer = 0;
+    const persistReports = () => {
+      setViolationPending(reports.size);
+      if (!savePendingEvents(attempt.id, reports.values())) {
+        setWarning('Local event backup is unavailable. Keep this tab open until the event is confirmed by the service.');
+      }
+    };
     const flush = (): Promise<void> => {
       if (sending) return sending;
       sending = (async () => {
-      try { for (const [key, report] of reports) {
-        const response = await api.reportViolation(attempt.id, report, { keepalive: report.kind === 'page-exit' }); reports.delete(key);
-        if (!mounted.current) return;
-        const decision = setResponse(response);
-        if (decision.counted) setWarning(`${decision.message} ${decision.strikes.count} of ${decision.strikes.limit} events recorded. ${decision.strikes.remaining} remaining. An observation is not an accusation.`);
-        latestDecision = { counted: decision.counted, reason: decision.counted ? decision.strikes.lastReason ?? decision.message : decision.message, remaining: decision.strikes.remaining, receivedAt: performance.now() };
-        if (report.kind === 'tab-hidden') setFocusReview({ state: 'ready', ...latestDecision });
-        else setFocusReview((current) => current ? { state: 'ready', ...latestDecision! } : current);
-        const currentAttempt = setResponse(await api.getAttempt(attempt.id)); applyAttempt(currentAttempt);
-      } } catch { if (mounted.current) setWarning('A focus report could not be sent. It will be retried when the connection returns.'); }
+        try {
+          for (const [key, report] of reports) {
+            if (!navigator.onLine) break;
+            const decision = setResponse(await api.reportViolation(attempt.id, report, { keepalive: report.kind === 'page-exit' }));
+            reports.delete(key); persistReports();
+            if (!mounted.current) return;
+            const current = attemptRef.current;
+            if (current?.id === attempt.id) applyAttempt({ ...current, strikes: decision.strikes });
+            const reason = decision.counted ? decision.strikes.lastReason ?? decision.message : decision.message;
+            setWarning(`${reason} ${decision.strikes.count} of ${decision.strikes.limit} events confirmed.${reports.size ? ` ${reports.size} awaiting confirmation.` : ''} An observation is not an accusation.`);
+            setFocusReview((visible) => visible ? { state: 'ready', counted: decision.counted, reason, remaining: decision.strikes.remaining } : null);
+            if (decision.strikes.disqualified) {
+              const final = setResponse(await api.getAttempt(attempt.id));
+              if (mounted.current) applyAttempt(final);
+              return;
+            }
+          }
+        } catch {
+          if (mounted.current) setWarning(`${reports.size} browser observation${reports.size === 1 ? '' : 's'} saved locally and awaiting the exam service. The timer continues.`);
+        }
       })().finally(() => { sending = null; });
       return sending;
     };
     const report = (kind: ViolationReport['kind']) => {
       const input = dedupe(kind);
-      if (!input) return;
-      reports.set(input.eventId, input); void flush();
+      if (!input) return null;
+      reports.set(input.eventId, input); persistReports();
+      const current = attemptRef.current;
+      const projected = Math.min(current?.strikes.limit ?? 5, (current?.strikes.count ?? 0) + reports.size);
+      setWarning(`${eventLabel(kind)}. ${projected} of ${current?.strikes.limit ?? 5} observed; ${reports.size} awaiting server confirmation. An observation is not an accusation.`);
+      void flush();
+      return input;
     };
     const visibility = () => {
       if (document.hidden) {
-        const recent = latestDecision && performance.now() - latestDecision.receivedAt < 2500 ? latestDecision : null;
-        setFocusReview(recent ? { state: 'ready', ...recent } : { state: 'checking', counted: false, reason: '', remaining: attemptRef.current?.strikes.remaining ?? 5 });
-        report('tab-hidden');
+        window.clearTimeout(blurTimer);
+        const observation = report('tab-hidden');
+        setFocusReview({ state: 'ready', counted: false,
+          reason: observation ? 'The exam tab was hidden. Server confirmation is pending.' : 'The exam tab was hidden during a related focus observation.',
+          remaining: Math.max(0, (attemptRef.current?.strikes.remaining ?? 5) - reports.size) });
       }
       else {
         void (async () => {
           await flush();
           try {
             const currentAttempt = setResponse(await api.getAttempt(attempt.id)); applyAttempt(currentAttempt);
-            if (currentAttempt.progress.phase === 'in-progress' && reports.size === 0) setFocusReview((current) => current && current.state === 'checking' ? {
-              state: 'ready', counted: currentAttempt.strikes.remaining < current.remaining,
-              reason: currentAttempt.strikes.remaining < current.remaining ? currentAttempt.strikes.lastReason ?? 'The exam service confirmed a rule break.' : 'The exam service did not confirm an additional strike.',
-              remaining: currentAttempt.strikes.remaining,
-            } : current);
           } catch { setWarning('Could not verify your attempt after returning. Reconnect before continuing.'); }
         })();
         if (fullscreenEverEntered.current && !document.fullscreenElement && document.fullscreenEnabled) setFullscreenMode('required');
@@ -277,25 +300,36 @@ export function ExamProvider({ children }: { children: ReactNode }) {
       wasFullscreen = active;
     };
     const pagehide = () => report('page-exit');
-    const blur = () => { if (!document.hidden && !(document.activeElement instanceof HTMLIFrameElement)) report('window-blurred'); };
+    const blur = () => {
+      window.clearTimeout(blurTimer);
+      blurTimer = window.setTimeout(() => {
+        if (!document.hidden && !document.hasFocus() && !(document.activeElement instanceof HTMLIFrameElement)) {
+          const observation = report('window-blurred');
+          if (observation) setFocusReview({ state: 'ready', counted: false, reason: 'The exam window lost focus. Server confirmation is pending.', remaining: Math.max(0, (attemptRef.current?.strikes.remaining ?? 5) - reports.size) });
+        }
+      }, 120);
+    };
+    const focused = () => { window.clearTimeout(blurTimer); void flush(); };
     const offline = () => { setWarning('Connection lost. Unsent answers are kept in this browser tab and will retry when the connection returns.'); report('connection-lost'); };
     const online = () => { report('connection-restored'); void flush(); void pump(); };
     const clipboard = (event: ClipboardEvent) => { event.preventDefault(); report(event.type as 'copy' | 'cut' | 'paste'); };
     const contextMenu = (event: MouseEvent) => { event.preventDefault(); report('context-menu'); };
     const beforePrint = () => report('print');
     const keyboard = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      if ((event.ctrlKey || event.metaKey) && ['c', 'x', 'v', 'p'].includes(key)) { event.preventDefault(); report(({ c: 'copy', x: 'cut', v: 'paste', p: 'print' } as const)[key as 'c' | 'x' | 'v' | 'p']); }
-      else if (event.key === 'F12' || ((event.ctrlKey || event.metaKey) && event.shiftKey && ['i', 'j', 'c'].includes(key))) { event.preventDefault(); report('developer-shortcut'); }
+      const kind = shortcutViolation(event);
+      if (kind) { event.preventDefault(); report(kind); }
     };
     let width = window.innerWidth; let resizeTimer = 0;
     const resize = () => { window.clearTimeout(resizeTimer); resizeTimer = window.setTimeout(() => { if (window.innerWidth < width * .7) report('window-shrunk'); width = window.innerWidth; }, 200); };
-    const retry = window.setInterval(() => { if (navigator.onLine) { void flush(); if (queue.current.size) void pump(); } }, 5000);
-    document.addEventListener('visibilitychange', visibility); document.addEventListener('fullscreenchange', fullscreen); window.addEventListener('online', online); window.addEventListener('offline', offline); window.addEventListener('blur', blur); window.addEventListener('pagehide', pagehide); window.addEventListener('beforeprint', beforePrint); window.addEventListener('resize', resize); document.addEventListener('copy', clipboard, true); document.addEventListener('cut', clipboard, true); document.addEventListener('paste', clipboard, true); document.addEventListener('contextmenu', contextMenu, true); document.addEventListener('keydown', keyboard, true);
-    return () => { clearInterval(retry); clearTimeout(resizeTimer); document.removeEventListener('visibilitychange', visibility); document.removeEventListener('fullscreenchange', fullscreen); window.removeEventListener('online', online); window.removeEventListener('offline', offline); window.removeEventListener('blur', blur); window.removeEventListener('pagehide', pagehide); window.removeEventListener('beforeprint', beforePrint); window.removeEventListener('resize', resize); document.removeEventListener('copy', clipboard, true); document.removeEventListener('cut', clipboard, true); document.removeEventListener('paste', clipboard, true); document.removeEventListener('contextmenu', contextMenu, true); document.removeEventListener('keydown', keyboard, true); };
+    const retry = window.setInterval(() => { if (navigator.onLine) { void flush(); if (queue.current.size) void pump(); } }, 3000);
+    if (reports.size) void flush();
+    document.addEventListener('visibilitychange', visibility); document.addEventListener('fullscreenchange', fullscreen); window.addEventListener('online', online); window.addEventListener('offline', offline); window.addEventListener('blur', blur); window.addEventListener('focus', focused); window.addEventListener('pagehide', pagehide); window.addEventListener('beforeprint', beforePrint); window.addEventListener('resize', resize); document.addEventListener('copy', clipboard, true); document.addEventListener('cut', clipboard, true); document.addEventListener('paste', clipboard, true); document.addEventListener('contextmenu', contextMenu, true); document.addEventListener('keydown', keyboard, true);
+    return () => { clearInterval(retry); clearTimeout(resizeTimer); clearTimeout(blurTimer); document.removeEventListener('visibilitychange', visibility); document.removeEventListener('fullscreenchange', fullscreen); window.removeEventListener('online', online); window.removeEventListener('offline', offline); window.removeEventListener('blur', blur); window.removeEventListener('focus', focused); window.removeEventListener('pagehide', pagehide); window.removeEventListener('beforeprint', beforePrint); window.removeEventListener('resize', resize); document.removeEventListener('copy', clipboard, true); document.removeEventListener('cut', clipboard, true); document.removeEventListener('paste', clipboard, true); document.removeEventListener('contextmenu', contextMenu, true); document.removeEventListener('keydown', keyboard, true); };
   }, [api, attempt?.id, phase, applyAttempt, pump, setResponse]);
   const reconnect = async () => { await refresh(); if (!contentRef.current) setContentRetry((value) => value + 1); };
-  return <ExamContext.Provider value={{ schedule, eligibility, attempt, content, loading, error, warning, now, pending, saveError, drafts, refresh: reconnect, begin, start, startExam, fullscreenMode, returnToFullscreen: () => requestFullscreenFromGesture(true), focusReview, dismissFocusReview: () => setFocusReview(null), submit, updateAnswer, retrySaving }}>{children}</ExamContext.Provider>;
+  const violationCount = Math.min(attempt?.strikes.limit ?? 5, (attempt?.strikes.count ?? 0) + violationPending);
+  const violationLimitPending = Boolean(attempt?.progress.phase === 'in-progress' && violationCount >= attempt.strikes.limit);
+  return <ExamContext.Provider value={{ schedule, eligibility, attempt, content, loading, error, warning, now, pending, saveError, violationCount, violationPending, violationLimitPending, drafts, refresh: reconnect, begin, start, startExam, fullscreenMode, enterFullscreen: () => requestFullscreenFromGesture(false), returnToFullscreen: () => requestFullscreenFromGesture(true), focusReview, dismissFocusReview: () => setFocusReview(null), submit, updateAnswer, retrySaving }}>{children}</ExamContext.Provider>;
 }
 export function useExam() { const value = useContext(ExamContext); if (!value) throw new Error('ExamProvider required.'); return value; }
 export type { Answer };

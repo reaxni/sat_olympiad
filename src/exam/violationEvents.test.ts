@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createViolationDeduper } from './violationEvents';
+import { createViolationDeduper, shortcutViolation } from './violationEvents';
 describe('related browser observations', () => {
   it('reports a tab switch once even when fullscreen and pagehide also fire', () => {
     const observe = createViolationDeduper();
@@ -12,5 +12,17 @@ describe('related browser observations', () => {
     expect(observe('context-menu', 1500)?.kind).toBe('context-menu');
     expect(observe('paste', 1600)).toBeNull();
     expect(observe('tab-hidden', 4000)?.eventId).not.toBe(first?.eventId);
+  });
+});
+
+describe('keyboard observations', () => {
+  const input = (key: string, overrides: Partial<KeyboardEvent> = {}) => ({ key, ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, repeat: false, ...overrides });
+  it('recognizes DevTools shortcuts before clipboard shortcuts', () => {
+    expect(shortcutViolation(input('c', { shiftKey: true }))).toBe('developer-shortcut');
+    expect(shortcutViolation(input('c'))).toBe('copy');
+    expect(shortcutViolation(input('i', { shiftKey: true }))).toBe('developer-shortcut');
+    expect(shortcutViolation(input('i', { ctrlKey: false, metaKey: true, altKey: true }))).toBe('developer-shortcut');
+    expect(shortcutViolation(input('F12', { ctrlKey: false }))).toBe('developer-shortcut');
+    expect(shortcutViolation(input('c', { repeat: true }))).toBeNull();
   });
 });

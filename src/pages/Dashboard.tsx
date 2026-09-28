@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { useExam } from '../exam/context';
 import { Badge, Card, LoadingState, Notice } from '../components/ui';
-import { formatDuration } from '../exam/TestWorkspace';
+import { formatDuration } from '../exam/formatDuration';
 
 export function Dashboard() {
   const exam = useExam();

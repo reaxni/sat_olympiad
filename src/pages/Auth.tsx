@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router';
 import { useExamService } from '../api/context';
 import { errorMessage } from '../api/client';
 import { Badge, Button, LoadingState, Notice, TextField } from '../components/ui';
+import jurekArtwork from '../../assets/jurek.jpeg';
 
 export function Auth() {
   const { state, retry, setStudent } = useExamService();
@@ -32,7 +33,7 @@ export function Auth() {
   return <main className="auth-layout">
     <section className="auth-story" aria-label="1609 SAT Olympiad">
       <div className="wordmark"><img className="brand-logo" src="/assets/logo1609.jpg" alt="" />1609 SAT Olympiad</div>
-      <div className="auth-story-copy"><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Vote For<br /><em>Jurek.</em></h1><h1>Vote For<br /><em>Adele.</em></h1></div>
+      <div className="auth-story-copy campaign-story"><p className="eyebrow">ВЫБОРЫ ПРЕЗИДЕНТА ШКОЛЫ</p><h1>Твой голос<br /><em>имеет значение.</em></h1><p className="campaign-lead">Участвуй в школьных выборах: познакомься с кандидатами и проголосуй за того, кому доверяешь будущее школы.</p><div className="campaign-grid"><article className="campaign-card campaign-card--jurek"><img src={jurekArtwork} alt="Арт с именем Jurek" width="180" height="180" /><div><span>КАНДИДАТ 01</span><h2>Vote for Jurek</h2></div></article><article className="campaign-card campaign-card--adele"><div className="campaign-monogram" aria-hidden="true">A</div><div><span>КАНДИДАТ 02</span><h2>Vote for Adele</h2></div></article></div><p className="campaign-status">Ссылки для голосования пока не добавлены.</p></div>
       <div className="auth-format"><span>02 <small>fixed sections</small></span><span>49 <small>questions</small></span><span>67 <small>minutes</small></span></div>
       <p className="auth-footnote">Independent Olympiad. Not an official SAT exam or score.</p>
     </section>
