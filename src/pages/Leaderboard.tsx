@@ -5,7 +5,7 @@ import type { Leaderboard } from '../domain/exam';
 import { Button, Card, LoadingState, Notice } from '../components/ui';
 import { Link } from 'react-router';
 import { AppIcon } from '../components/AppIcon';
-const duration = (seconds: number) => `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, '0')} s`;
+import { formatElapsedTime as duration } from '../exam/formatElapsedTime';
 
 export function LeaderboardPage() {
   const { api } = useAuthenticatedApi(); const [data, setData] = useState<Leaderboard | null>(null); const [error, setError] = useState(''); const [retry, setRetry] = useState(0);
