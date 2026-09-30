@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { createApi } from './index';
 import { errorMessage, type ExamApi, type ServiceInfo } from './client';
 import type { Student } from '../domain/exam';
+import { restoreSession } from './restoreSession';
 
 type ServiceState = { status: 'loading' } | { status: 'ready'; api: ExamApi; service: ServiceInfo; student: Student | null } | { status: 'error'; message: string };
 const ApiContext = createContext<{ state: ServiceState; retry: () => void; setStudent: (student: Student | null) => void } | null>(null);
@@ -14,12 +15,8 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     setState({ status: 'loading' });
     void (async () => {
       try {
-        const api = await createApi();
-        const [service, current] = await Promise.all([
-          api.getService({ signal: controller.signal }),
-          api.getStudent({ signal: controller.signal }),
-        ]);
-        if (!controller.signal.aborted) setState({ status: 'ready', api, service: service.data, student: current.data });
+        const restored = await restoreSession(createApi, controller.signal);
+        if (!controller.signal.aborted) setState({ status: 'ready', ...restored });
       } catch (error) {
         if (!controller.signal.aborted) setState({ status: 'error', message: errorMessage(error) });
       }
