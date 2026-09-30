@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import { useExam } from '../exam/context';
 import { Badge, Card, LoadingState, Notice } from '../components/ui';
 import { formatDuration } from '../exam/formatDuration';
+import { AppIcon } from '../components/AppIcon';
 
 export function Dashboard() {
   const exam = useExam();
@@ -15,7 +16,7 @@ export function Dashboard() {
       <p>One hard Reading and Writing module followed immediately by one hard Math module.</p>
       <div className="dashboard-facts"><span>◷ &nbsp; 32 + 35 minutes</span><span>☷ &nbsp; 27 + 22 questions</span><span>▦ &nbsp; Grades 7–12</span></div>
       {until > 0 && !exam.attempt && <p>Opens in <strong>{formatDuration(until)}</strong> · {new Date(schedule.opensAt).toLocaleString()}</p>}
-      <div className="dashboard-card-actions"><Link className="button button--primary" to="/exam">{phase === 'completed' ? 'See your result' : phase === 'in-progress' ? 'Return to exam' : 'Open exam'}</Link><Link className="button button--secondary" to="/leaderboard">Ranking</Link></div>
+      <div className="dashboard-card-actions"><Link className="button button--primary" to="/exam">{phase === 'completed' ? 'See your result' : phase === 'in-progress' ? 'Return to exam' : 'Open exam'}</Link><Link className="button button--secondary" to="/leaderboard"><AppIcon name="ranking" />Ranking</Link></div>
     </Card>}
   </div>;
 }

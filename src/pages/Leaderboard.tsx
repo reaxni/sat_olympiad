@@ -4,6 +4,7 @@ import { errorMessage } from '../api/client';
 import type { Leaderboard } from '../domain/exam';
 import { Button, Card, LoadingState, Notice } from '../components/ui';
 import { Link } from 'react-router';
+import { AppIcon } from '../components/AppIcon';
 const duration = (seconds: number) => `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, '0')} s`;
 
 export function LeaderboardPage() {
@@ -18,7 +19,7 @@ export function LeaderboardPage() {
     return () => { controller.abort(); clearInterval(timer); };
   }, [api, retry]);
   const released = data?.results.status === 'released';
-  return <div className="page-container ranking-page"><div className="page-heading"><div><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Ranking</h1><p>{released ? 'Final scores and rankings. Ties are ordered by time taken.' : 'Registered participants. Ranks, scores, and times appear when the exam closes.'}</p></div><Link className="button button--secondary" to="/dashboard">Dashboard</Link></div>
+  return <div className="page-container ranking-page"><div className="page-heading"><div><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Ranking</h1><p>{released ? 'Final scores and rankings. Ties are ordered by time taken.' : 'Registered participants. Ranks, scores, and times appear when the exam closes.'}</p></div><Link className="button button--secondary" to="/dashboard"><AppIcon name="dashboard" />Dashboard</Link></div>
     {error ? <Notice tone="error" title="Leaderboard unavailable">{error}<div><Button variant="secondary" onClick={() => setRetry((v) => v + 1)}>Try again</Button></div></Notice> : !data ? <LoadingState label="Loading participants…" /> : <>
       {!released && <Notice title="Results not released">Only participant names and grades are available.</Notice>}
       <Card className="leaderboard-card"><div className="card-heading"><h2>{released ? 'Released results' : 'Registered participants'}</h2><span>{data.participants.length} participants</span></div>

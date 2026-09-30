@@ -1,0 +1,8 @@
+.app-icon {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  object-fit: contain;
+  vertical-align: middle;
+}
