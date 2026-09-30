@@ -5,6 +5,7 @@ import { errorMessage } from '../api/client';
 import { useExam } from '../exam/context';
 import { Badge, Button, Notice } from './ui';
 import { Modal } from './Modal';
+import olympiadLogo from '../../assets/1609logo.jpeg';
 
 export function Layout() {
   const { api, student, isMock } = useAuthenticatedApi();
@@ -25,7 +26,7 @@ export function Layout() {
   return <div className={`app-shell olympiad-shell ${takingExam ? 'test-active' : 'with-sidebar'}`}>
     <a className="skip-link" href="#main-content">Skip to content</a>
     {!takingExam && <aside className="dashboard-sidebar">
-      <div className="sidebar-brand"><img src="/assets/logo1609.jpg" alt="" /><strong>1609 SAT<br />Olympiad</strong></div>
+      <div className="sidebar-brand"><img src={olympiadLogo} alt="" /><strong>1609 SAT<br />Olympiad</strong></div>
       <nav aria-label="Main navigation"><NavLink to="/dashboard">▦ <span>Dashboard</span></NavLink><NavLink to="/profile">♙ <span>Profile</span></NavLink></nav>
       <div className="sidebar-account"><div><strong>{student.name}</strong><small>{student.email}</small></div><button aria-label="Sign out" onClick={() => setConfirm(true)}>↪</button></div>
     </aside>}

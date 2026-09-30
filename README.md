@@ -10,7 +10,19 @@ The local development adapter is clearly marked **Local mock**. Its sample accou
 
 For an HTTP service, set `VITE_API_BASE_URL` to its origin, such as `http://localhost:8080`. Requests use `credentials: include` and a backend-managed secure session cookie; the frontend stores no authentication token and never reads or sends a client IP. The Go service must allow the exact local site origin in its CORS policy and allow credentials. In production, configure the service URL before building. Without it, the frontend shows service unavailable. See [Go API contract](docs/go-api-contract.md).
 
-## Desmos
+## Railway deployment
+
+Deploy this frontend directory as its own Railway service. The included `Dockerfile` builds the production website and serves it with Nginx. `railway.json` enables the `/healthz` health check. Nginx listens on Railway's `PORT` and supports refreshing client routes such as `/auth` and `/dashboard`. Leave Railway's custom build/start command overrides empty so the container's commands run.
+
+Before deploying, set frontend service variable `VITE_API_BASE_URL` to your public HTTPS backend origin. Optionally set `VITE_DESMOS_API_KEY`. These values are compiled into the website; rebuild when changing them. The Docker build stops if the API URL is missing. Local `.env` files are excluded from the Docker build context.
+
+Add the website domain under the frontend service's Networking settings. For the selected address, use `www.1609sat-olympiad.run.place` and configure the CNAME/TXT records Railway provides. On the backend, include `https://www.1609sat-olympiad.run.place` in `ALLOWED_ORIGINS` (comma-separated if preserving other origins). If frontend and backend use different sites, configure `COOKIE_SAMESITE=none` with HTTPS; browser third-party-cookie restrictions may still affect login. Prefer a backend domain under the same site for reliable sessions.
+
+Images from `assets/1609logo.jpeg`, `assets/jurek.jpeg`, and `assets/adele.jpeg` are imported by Vite, so the production build includes them with hashed filenames. Keep those files committed alongside the source.
+
+See [Railway Docker build arguments](https://docs.railway.com/builds/dockerfiles) and [SPA routing](https://docs.railway.com/guides/spa-routing-configuration).
+
+## Desmos configuration
 
 Set `VITE_DESMOS_API_KEY` to an official Desmos API key. Both GraphingCalculator and ScientificCalculator are loaded only in Math. The frontend checks `window.Desmos.enabledFeatures` and the constructor for each calculator; a missing key, disabled feature, or loading failure shows an unavailable message. Any `VITE_` setting is embedded in the client bundle, so the Desmos key must be suitable for public browser use and restricted by the provider. Neither calculator appears in Reading and Writing.
 

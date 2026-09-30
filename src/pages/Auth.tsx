@@ -4,6 +4,9 @@ import { useExamService } from '../api/context';
 import { errorMessage } from '../api/client';
 import { Badge, Button, LoadingState, Notice, TextField } from '../components/ui';
 import jurekArtwork from '../../assets/jurek.jpeg';
+import adeleArtwork from '../../assets/adele.jpeg';
+import olympiadLogo from '../../assets/1609logo.jpeg';
+import './Auth.css';
 
 export function Auth() {
   const { state, retry, setStudent } = useExamService();
@@ -32,11 +35,11 @@ export function Auth() {
   const mock = state.status === 'ready' && state.service.environment === 'development';
   return <main className="auth-layout">
     <section className="auth-story" aria-label="1609 SAT Olympiad">
-      <div className="wordmark"><img className="brand-logo" src="/assets/1609logo.jpeg" alt="" />1609 SAT Olympiad</div>
+      <div className="wordmark"><img className="brand-logo" src={olympiadLogo} alt="" />1609 SAT Olympiad</div>
       <div className="auth-story-copy campaign-story"><p className="eyebrow">ВЫБОРЫ ПРЕЗИДЕНТА ШКОЛЫ</p><h1>Твой голос<br /><em>имеет значение.</em></h1><p className="campaign-lead">Участвуй в школьных выборах: познакомься с кандидатами и проголосуй за того, кому доверяешь будущее школы.</p>
         <article className="campaign-card campaign-card--combined" aria-label="Jurek and Adele">
           <div className="campaign-candidate"><img src={jurekArtwork} alt="Арт с именем Jurek" width="180" height="180" /><h2>Vote for Jurek</h2></div>
-          <div className="campaign-candidate"><div className="campaign-monogram" aria-hidden="true">A</div><h2>Vote for Adele</h2></div>
+          <div className="campaign-candidate"><img src={adeleArtwork} alt="Фото Adele" width="180" height="180" /><h2>Vote for Adele</h2></div>
         </article>
         <p className="campaign-status">Ссылки для голосования пока не добавлены.</p>
       </div>
