@@ -148,8 +148,13 @@ describe('fixed exam and release boundaries', () => {
     expect((await api.reportViolation(id, { ...report, eventId: 'print', kind: 'print' })).data.strikes.disqualified).toBe(true);
     expect((await api.getAttempt(id)).data.progress.phase).toBe('disqualified');
   });
-  it('releases a leaderboard response without emails', async () => {
+  it('keeps ranking private before close even in a released-review scenario', async () => {
     vi.stubEnv('VITE_MOCK_SCENARIO', 'released'); const api = createMockApi(); await login(api);
+    const before = (await api.getLeaderboard('dev-olympiad')).data;
+    expect(before.results.status).toBe('locked');
+    expect(before.results).not.toHaveProperty('data');
+    const schedule = (await api.getSchedule()).data;
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(schedule.entryClosesAt));
     const result = (await api.getLeaderboard('dev-olympiad')).data;
     expect(result.results.status).toBe('released'); expect(JSON.stringify(result)).not.toContain('email');
   });

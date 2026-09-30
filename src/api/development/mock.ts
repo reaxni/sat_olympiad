@@ -68,7 +68,7 @@ export function createMockApi(): ExamApi {
     }
     const data = action(); state.mutations[key] = { signature, data: structuredClone(data) }; persist(); return data;
   };
-  const released = <T>(data: () => T, ranking = false): ReleasedResource<T> => scenario === 'released' || (ranking && now() >= closesAt) ? { status: 'released', releasedAt: iso(ranking && now() >= closesAt ? closesAt : now()), data: data() } : { status: 'locked', message: 'Results have not been released.' };
+  const released = <T>(data: () => T, ranking = false): ReleasedResource<T> => (ranking ? now() >= closesAt : scenario === 'released') ? { status: 'released', releasedAt: iso(ranking && now() >= closesAt ? closesAt : now()), data: data() } : { status: 'locked', message: 'Results have not been released.' };
   const makeChallenge = (input: EmailCodeRequest, expired = false) => {
     const challenge = { id: crypto.randomUUID(), email: input.email, expiresAt: iso(now() + (expired ? -1 : 600_000)), resendAt: iso(now() + 30_000) };
     state.challenges[challenge.id] = { challenge, input, used: false }; return challenge;
@@ -178,9 +178,9 @@ export function createMockApi(): ExamApi {
     getResult: (a, o) => {
       const attempt = owned(a); if (attempt.progress.phase !== 'completed') throw new ApiError('FORBIDDEN', 'Results are not available.', 403);
       const readingWriting = scores(attempt, 'reading-writing'); const math = scores(attempt, 'math');
-      return respond({ attemptId: a, submittedAt: attempt.progress.completedAt, timeTakenSeconds: elapsed(attempt), readingWriting, math, overall: { value: readingWriting.value + math.value, maximum: 1600, label: 'Simulated development score — not graded' }, releases: { explanations: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Explanations have not been released.' }, leaderboard: scenario === 'released' || now() >= closesAt ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Leaderboard results have not been released.' } } }, o?.signal);
+      return respond({ attemptId: a, submittedAt: attempt.progress.completedAt, timeTakenSeconds: elapsed(attempt), readingWriting, math, overall: { value: readingWriting.value + math.value, maximum: 1600, label: 'Simulated development score — not graded' }, releases: { explanations: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Explanations have not been released.' }, leaderboard: now() >= closesAt ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Leaderboard results have not been released.' } } }, o?.signal);
     },
-    getReleases: (e, o) => { exam(e); return respond({ explanations: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Explanations have not been released.' }, leaderboard: scenario === 'released' || now() >= closesAt ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Leaderboard results have not been released.' } }, o?.signal); },
+    getReleases: (e, o) => { exam(e); return respond({ explanations: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Explanations have not been released.' }, leaderboard: now() >= closesAt ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Leaderboard results have not been released.' } }, o?.signal); },
     getReview: (a, o) => { const attempt = owned(a); if (attempt.progress.phase !== 'completed') throw new ApiError('FORBIDDEN', 'Complete the exam before review.', 403); return respond(released(() => ({ attemptId: a, items: [] })), o?.signal); },
     getLeaderboard: (e, o) => {
       exam(e); Object.values(state.attempts).forEach(closeAttempt); const participants = state.students.map(({ id, name, grade }) => ({ id, name, grade }));

@@ -1,0 +1,32 @@
+.sat-reference-sheet { color: #222; font-family: Georgia, 'Times New Roman', serif; }
+.sat-reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 18px; }
+.sat-reference-diagram { min-width: 0; text-align: center; }
+.sat-reference-diagram svg { width: 100%; max-width: 200px; height: 140px; fill: none; stroke: #222; stroke-width: 1.4; }
+.sat-reference-diagram svg text { fill: #222; stroke: none; font-family: Georgia, serif; font-style: italic; font-size: 20px; }
+.sat-reference-diagram svg .reference-angle { font-size: 14px; font-style: normal; }
+.sat-reference-diagram .reference-point { fill: #222; }
+.sat-reference-diagram .reference-dashed { stroke-dasharray: 4 3; }
+.sat-reference-diagram .math-expression { font-size: 1.05rem; padding: 5px 0; }
+.reference-special-title { grid-column: 1 / -1; text-align: center; font-size: 1.2rem; margin: -12px 0 4px; }
+.reference-angle-facts { font-size: 1rem; line-height: 1.55; margin-top: 30px; }
+.reference-angle-facts p { margin: 22px 0; }
+.numeric-directions table { width: 100%; table-layout: fixed; font-weight: normal; }
+.numeric-directions table caption { text-align: center; font-size: 1.15rem; color: #222; padding-top: 30px; }
+.numeric-directions table :is(th, td) { text-align: center; padding: 18px 8px; font-size: 1rem; line-height: 1.5; color: #222; font-weight: normal; background: #fff; }
+.numeric-directions table thead th { font-size: .95rem; }
+.numeric-directions table th:first-child { width: 24%; }
+.numeric-directions table code { display: table; margin: 6px auto; white-space: nowrap; font-size: .9rem; padding: 1px 4px; }
+.numeric-directions table .math-expression { margin: 0; padding: 0; font-size: 1rem; }
+@media (min-width: 901px) {
+  .question-stage.math-stage.numeric-directions-visible { display: grid; grid-template-columns: minmax(0, var(--numeric-left, 1fr)) 8px minmax(0, 1fr); overflow: hidden; }
+  .question-stage.math-stage.numeric-directions-visible.calculator-visible { grid-template-columns: minmax(220px, .65fr) minmax(0, var(--numeric-left, 1fr)) 8px minmax(0, 1fr); }
+  .question-stage.math-stage.numeric-directions-visible .numeric-directions-pane { max-height: none; min-height: 0; overflow: auto; border-bottom: 0; grid-column: auto; }
+  .question-stage.math-stage.numeric-directions-visible .problem-pane { grid-column: auto; min-width: 0; }
+  .question-stage.math-stage.numeric-directions-visible .calculator-dock { grid-column: auto; grid-row: auto; }
+  .question-stage.math-stage.numeric-directions-visible .numeric-directions-divider { display: flex; cursor: col-resize; touch-action: none; position: relative; }
+  .numeric-directions-divider:focus-visible { outline: 3px solid #f5b631; outline-offset: 2px; z-index: 3; }
+  .numeric-directions-divider span { pointer-events: none; }
+}
+@media (max-width: 900px) {
+  .question-stage.math-stage.numeric-directions-visible .numeric-directions-pane { overflow: auto; }
+}

@@ -12,7 +12,7 @@ export function LeaderboardPage() {
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
-      try { const schedule = await api.getSchedule({ signal: controller.signal }); const response = await api.getLeaderboard(schedule.data.id, { signal: controller.signal }); if (!controller.signal.aborted) { setData(response.data); setError(''); } }
+      try { const schedule = await api.getSchedule({ signal: controller.signal }); const response = await api.getLeaderboard(schedule.data.id, { signal: controller.signal }); if (!controller.signal.aborted) { setData(Date.parse(response.serverTime) < Date.parse(schedule.data.entryClosesAt) ? { ...response.data, results: { status: 'locked', message: 'Scores, times, and rankings are hidden until the exam closes.' } } : response.data); setError(''); } }
       catch (failure) { if (!controller.signal.aborted) { setError(errorMessage(failure)); setData(null); } }
     };
     void load(); const timer = window.setInterval(() => void load(), 5000);
