@@ -15,7 +15,7 @@ export function Result({ attemptId }: { attemptId: string }) {
   }, [api, attemptId, retry]);
   const openReview = async () => { setBusy(true); setError(''); try { setReview((await api.getReview(attemptId)).data); } catch (failure) { setError(errorMessage(failure)); } finally { setBusy(false); } };
   const describe = (value: AnswerValue | null, item: ReleasedReview['items'][number]) => !value ? 'No answer' : value.kind === 'numeric' ? value.value : item.question.kind === 'multiple-choice' ? `Choice ${item.question.choices.findIndex((choice) => choice.id === value.choiceId) + 1}` : 'Response unavailable';
-  return <div className="page-container result-page"><div className="page-heading"><div><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Your result</h1><p>Both hard modules are complete. This is an independent Olympiad scale, not an official SAT score.</p></div><Link className="button button--secondary" to="/leaderboard">♜ Ranking</Link></div>
+  return <div className="page-container result-page"><div className="page-heading"><div><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Your result</h1><p>Your exam has ended and your saved answers have been scored. This is an independent Olympiad scale, not an official SAT score.</p></div><Link className="button button--secondary" to="/leaderboard">♜ Ranking</Link></div>
     {isMock && <Notice title="Simulated result">Development scores are sample display values. Placeholder questions have no answer key and are not graded.</Notice>}
     {error && <Notice tone="error" title="Result unavailable">{error}<Button variant="secondary" onClick={() => setRetry((value) => value + 1)}>Try again</Button></Notice>}
     {!result && !error && <LoadingState label="Loading your result…" />}

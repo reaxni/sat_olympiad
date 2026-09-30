@@ -26,7 +26,8 @@ export function createMockApi(): ExamApi {
   const now = () => state.epoch + (Date.now() - state.realEpoch) * rate;
   const iso = (value = now()) => new Date(value).toISOString();
   const opensAt = state.epoch + (scenario === 'countdown' ? delay * 1000 : -1000);
-  const schedule = { id: 'dev-olympiad', title: '1609 SAT Olympiad', opensAt: iso(opensAt), entryClosesAt: iso(opensAt + 7 * 86_400_000), sections: EXAM_SECTIONS, autoSubmitAfterEvents: 5 };
+  const closesAt = opensAt + Math.max(1, Number(import.meta.env.VITE_MOCK_CLOSE_DELAY_SECONDS) || 7 * 86_400) * 1000;
+  const schedule = { id: 'dev-olympiad', title: '1609 SAT Olympiad', opensAt: iso(opensAt), entryClosesAt: iso(closesAt), sections: EXAM_SECTIONS, autoSubmitAfterEvents: 5 };
   const respond = async <T>(data: T, signal?: AbortSignal): Promise<ApiResponse<T>> => {
     signal?.throwIfAborted();
     if (typeof navigator !== 'undefined' && !navigator.onLine) throw new ApiError('SERVICE_UNAVAILABLE', 'Connection failed. Your request was not completed.');
@@ -47,8 +48,12 @@ export function createMockApi(): ExamApi {
   const owned = (attemptId: string) => {
     const a = state.attempts[requireUser().id];
     if (!a || a.id !== attemptId) throw new ApiError('NOT_FOUND', 'Attempt not found.', 404);
+    closeAttempt(a);
     if (a.progress.phase === 'in-progress' && now() >= Date.parse(a.progress.deadlineAt)) advance(a);
     persist(); return a;
+  };
+  const closeAttempt = (a: Attempt) => {
+    if (now() >= closesAt && state.attemptStarts[a.id] && (a.progress.phase === 'in-progress' || a.progress.phase === 'instructions')) a.progress = { phase: 'completed', completedAt: iso(closesAt) };
   };
   const current = (attemptId: string, sectionId: SectionId) => {
     const a = owned(attemptId);
@@ -63,7 +68,7 @@ export function createMockApi(): ExamApi {
     }
     const data = action(); state.mutations[key] = { signature, data: structuredClone(data) }; persist(); return data;
   };
-  const released = <T>(data: () => T): ReleasedResource<T> => scenario === 'released' ? { status: 'released', releasedAt: iso(), data: data() } : { status: 'locked', message: 'Results have not been released.' };
+  const released = <T>(data: () => T, ranking = false): ReleasedResource<T> => scenario === 'released' || (ranking && now() >= closesAt) ? { status: 'released', releasedAt: iso(ranking && now() >= closesAt ? closesAt : now()), data: data() } : { status: 'locked', message: 'Results have not been released.' };
   const makeChallenge = (input: EmailCodeRequest, expired = false) => {
     const challenge = { id: crypto.randomUUID(), email: input.email, expiresAt: iso(now() + (expired ? -1 : 600_000)), resendAt: iso(now() + 30_000) };
     state.challenges[challenge.id] = { challenge, input, used: false }; return challenge;
@@ -116,10 +121,10 @@ export function createMockApi(): ExamApi {
     },
     signOut: (o) => { state.user = null; return respond(null, o?.signal); },
     getSchedule: (o) => { requireUser(); return respond(schedule, o?.signal); },
-    getEligibility: (e, o) => { exam(e); const attempt = state.attempts[requireUser().id]; return respond(now() < opensAt ? { status: 'blocked', reason: 'not-open', message: 'The exam has not opened yet.' } : attempt?.progress.phase === 'disqualified' ? { status: 'blocked', reason: 'disqualified', message: 'This attempt was restricted after five confirmed browser events.' } : { status: 'eligible' }, o?.signal); },
+    getEligibility: (e, o) => { exam(e); const attempt = state.attempts[requireUser().id]; return respond(now() < opensAt ? { status: 'blocked', reason: 'not-open', message: 'The exam has not opened yet.' } : now() >= closesAt ? { status: 'blocked', reason: 'entry-closed', message: 'The exam has closed.' } : attempt?.progress.phase === 'disqualified' ? { status: 'blocked', reason: 'disqualified', message: 'This attempt was restricted after five confirmed browser events.' } : { status: 'eligible' }, o?.signal); },
     getActiveAttempt: (e, o) => { exam(e); const a = state.attempts[requireUser().id]; return respond(a ? owned(a.id) : null, o?.signal); },
     createAttempt: async (e, input, o) => {
-      exam(e); if (now() < opensAt) throw new ApiError('FORBIDDEN', 'The exam has not opened yet.', 403);
+      exam(e); if (now() < opensAt || now() >= closesAt) throw new ApiError('FORBIDDEN', 'The exam entry window is closed.', 403);
       const user = requireUser();
       const data = mutate(`${user.id}:${input.mutationId}`, `create:${e}`, () => state.attempts[user.id] ?? (state.attempts[user.id] = { id: crypto.randomUUID(), examId: e, progress: { phase: 'instructions', sectionId: 'reading-writing' }, strikes: { count: 0, remaining: 5, limit: 5, disqualified: false } }));
       return respond(data, o?.signal);
@@ -130,9 +135,10 @@ export function createMockApi(): ExamApi {
       const data = mutate(`${a}:${input.mutationId}`, `start:${s}`, () => {
         if (attempt.progress.phase === 'in-progress' && attempt.progress.sectionId === s) return attempt;
         if (attempt.progress.phase !== 'instructions' || attempt.progress.sectionId !== s) throw new ApiError('FORBIDDEN', 'This section cannot be started.', 403);
+        if (now() >= closesAt) throw new ApiError('FORBIDDEN', 'The exam has closed.', 403);
         const section = EXAM_SECTIONS.find((item) => item.id === s)!;
         if (s === 'reading-writing') state.attemptStarts[a] = iso();
-        attempt.progress = { phase: 'in-progress', sectionId: s, startedAt: iso(), deadlineAt: iso(now() + section.durationSeconds * 1000) }; return attempt;
+        attempt.progress = { phase: 'in-progress', sectionId: s, startedAt: iso(), deadlineAt: iso(Math.min(now() + section.durationSeconds * 1000, closesAt)) }; return attempt;
       }); return respond(data, o?.signal);
     },
     getSection: (a, s, o) => { current(a, s); const section = EXAM_SECTIONS.find((item) => item.id === s)!; return respond({ section, slots: Array.from({ length: section.questionCount }, (_, i) => ({ position: i + 1, question: questions.find((q) => q.sectionId === s && q.position === i + 1) ?? null })), answers: Object.values(state.answers[a] ?? {}).filter((answer) => questions.some((q) => q.id === answer.questionId && q.sectionId === s)) }, o?.signal); },
@@ -172,13 +178,13 @@ export function createMockApi(): ExamApi {
     getResult: (a, o) => {
       const attempt = owned(a); if (attempt.progress.phase !== 'completed') throw new ApiError('FORBIDDEN', 'Results are not available.', 403);
       const readingWriting = scores(attempt, 'reading-writing'); const math = scores(attempt, 'math');
-      return respond({ attemptId: a, submittedAt: attempt.progress.completedAt, timeTakenSeconds: elapsed(attempt), readingWriting, math, overall: { value: readingWriting.value + math.value, maximum: 1600, label: 'Simulated development score — not graded' }, releases: { explanations: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Explanations have not been released.' }, leaderboard: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Leaderboard results have not been released.' } } }, o?.signal);
+      return respond({ attemptId: a, submittedAt: attempt.progress.completedAt, timeTakenSeconds: elapsed(attempt), readingWriting, math, overall: { value: readingWriting.value + math.value, maximum: 1600, label: 'Simulated development score — not graded' }, releases: { explanations: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Explanations have not been released.' }, leaderboard: scenario === 'released' || now() >= closesAt ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Leaderboard results have not been released.' } } }, o?.signal);
     },
-    getReleases: (e, o) => { exam(e); return respond({ explanations: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Explanations have not been released.' }, leaderboard: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Leaderboard results have not been released.' } }, o?.signal); },
+    getReleases: (e, o) => { exam(e); return respond({ explanations: scenario === 'released' ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Explanations have not been released.' }, leaderboard: scenario === 'released' || now() >= closesAt ? { status: 'released', releasedAt: iso() } : { status: 'locked', message: 'Leaderboard results have not been released.' } }, o?.signal); },
     getReview: (a, o) => { const attempt = owned(a); if (attempt.progress.phase !== 'completed') throw new ApiError('FORBIDDEN', 'Complete the exam before review.', 403); return respond(released(() => ({ attemptId: a, items: [] })), o?.signal); },
     getLeaderboard: (e, o) => {
-      exam(e); const participants = state.students.map(({ id, name, grade }) => ({ id, name, grade }));
-      return respond({ participants, results: released<LeaderboardEntry[]>(() => state.students.flatMap((s) => { const a = state.attempts[s.id]; return a?.progress.phase === 'completed' ? [{ rank: 0, name: s.name, grade: s.grade, score: { value: scores(a, 'reading-writing').value + scores(a, 'math').value, maximum: 1600, label: 'Simulated development score — not graded' }, timeTakenSeconds: elapsed(a) }] : []; }).sort((a, b) => b.score.value - a.score.value || a.timeTakenSeconds - b.timeTakenSeconds).map((row, i) => ({ ...row, rank: i + 1 }))) }, o?.signal);
+      exam(e); Object.values(state.attempts).forEach(closeAttempt); const participants = state.students.map(({ id, name, grade }) => ({ id, name, grade }));
+      return respond({ participants, results: released<LeaderboardEntry[]>(() => state.students.flatMap((s) => { const a = state.attempts[s.id]; return a?.progress.phase === 'completed' ? [{ rank: 0, name: s.name, grade: s.grade, score: { value: scores(a, 'reading-writing').value + scores(a, 'math').value, maximum: 1600, label: 'Simulated development score — not graded' }, timeTakenSeconds: elapsed(a) }] : []; }).sort((a, b) => b.score.value - a.score.value || a.timeTakenSeconds - b.timeTakenSeconds).map((row, i) => ({ ...row, rank: i + 1 })), true) }, o?.signal);
     },
   };
   // Check before mutations; an offline mock must not acknowledge or apply a write.

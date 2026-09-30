@@ -6,6 +6,7 @@ import { Result } from './Result';
 import { TestWorkspace } from '../exam/TestWorkspace';
 import { formatDuration } from '../exam/formatDuration';
 import { ModuleLoadingScreen } from '../exam/ModuleLoadingScreen';
+import { Link } from 'react-router';
 
 export function Exam() {
   const exam = useExam(); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [briefingAccepted, setBriefingAccepted] = useState(false);
@@ -13,6 +14,7 @@ export function Exam() {
   if (!exam.schedule) return <div className="page-container"><Notice tone="error" title="Exam service unavailable.">{exam.error || 'The exam could not be loaded.'}</Notice><Button onClick={() => void exam.refresh()}>Try again</Button></div>;
   if (exam.attempt?.progress.phase === 'completed') return <Result attemptId={exam.attempt.id} />;
   if (exam.attempt?.progress.phase === 'disqualified') return <div className="page-container narrow"><Badge>Attempt restricted</Badge><h1>Your attempt has ended.</h1><Notice tone="error" title="Five-event limit reached">{exam.attempt.strikes.lastReason ? `Latest recorded event: ${exam.attempt.strikes.lastReason} ` : ''}The exam service restricted this attempt after five confirmed events. No more answers can be submitted.</Notice><p>Contact the organizer if an event needs review.</p></div>;
+  if (exam.now >= Date.parse(exam.schedule.entryClosesAt)) return <div className="page-container narrow"><h1>The exam has ended.</h1><Notice title="Time is up">Your saved answers are submitted automatically. Only answers saved before the deadline count. {exam.error || 'Connecting to load the final result…'}</Notice><div className="actions"><Button onClick={() => void exam.refresh()}>Load result</Button><Link className="button button--secondary" to="/leaderboard">View ranking</Link></div></div>;
   if (exam.attempt?.progress.phase === 'in-progress') return <TestWorkspace key={exam.attempt.progress.sectionId} />;
   if (exam.attempt?.progress.phase === 'instructions' && exam.attempt.progress.sectionId === 'math') return <><ModuleLoadingScreen math />{exam.error && <div className="module-loading-error"><Notice tone="error" title="Math is reconnecting">{exam.error}<Button onClick={() => void exam.refresh()}>Retry now</Button></Notice></div>}</>;
   const countdown = Math.max(0, Date.parse(exam.schedule.opensAt) - exam.now);

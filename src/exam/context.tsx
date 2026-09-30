@@ -4,6 +4,7 @@ import { ApiError, errorMessage, type ApiResponse } from '../api/client';
 import type { Answer, AnswerValue, Attempt, Eligibility, ExamSchedule, QuestionTools, SaveAnswerInput, SectionContent, ViolationReport } from '../domain/exam';
 import { createViolationDeduper, shortcutViolation } from './violationEvents';
 import { eventLabel, loadPendingEvents, savePendingEvents } from './violationQueue';
+import { examDeadline } from './deadline';
 
 type Draft = { value: AnswerValue | null; markedForReview: boolean; tools?: QuestionTools };
 interface QueueEntry { draft: Draft; request?: SaveAnswerInput }
@@ -112,6 +113,7 @@ export function ExamProvider({ children }: { children: ReactNode }) {
         const item = queue.current.entries().next().value as [string, QueueEntry] | undefined;
         const active = attemptRef.current;
         if (!item || !active || active.progress.phase !== 'in-progress') break;
+        if (anchor.current.server + performance.now() - anchor.current.local >= examDeadline(active.progress.deadlineAt, scheduleRef.current?.entryClosesAt)) break;
         const [qid, entry] = item;
         entry.request ??= { ...entry.draft, expectedRevision: contentRef.current?.answers.find((answer) => answer.questionId === qid)?.revision ?? 0, mutationId: crypto.randomUUID() };
         try {
@@ -136,8 +138,7 @@ export function ExamProvider({ children }: { children: ReactNode }) {
   }, [api, setResponse]);
   useEffect(() => {
     if (!pending || saveError) return;
-    const timer = window.setTimeout(() => { void pump(); }, 350);
-    return () => clearTimeout(timer);
+    void pump();
   }, [pending, drafts, saveError, pump]);
   useEffect(() => {
     if (!pending) return;
@@ -145,6 +146,8 @@ export function ExamProvider({ children }: { children: ReactNode }) {
     window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
   }, [pending]);
   const updateAnswer = (qid: string, draft: Draft) => {
+    const current = attemptRef.current;
+    if (!current || current.progress.phase !== 'in-progress' || anchor.current.server + performance.now() - anchor.current.local >= examDeadline(current.progress.deadlineAt, scheduleRef.current?.entryClosesAt)) return;
     queue.current.set(qid, { draft }); setDrafts((old) => ({ ...old, [qid]: draft })); setPending(queue.current.size);
     const active = attemptRef.current;
     if (active?.progress.phase === 'in-progress') try { sessionStorage.setItem(`1609:drafts:${active.id}:${active.progress.sectionId}`, JSON.stringify(Object.fromEntries([...queue.current].map(([id, value]) => [id, value.draft])))); } catch { setWarning('Local backup is unavailable in this browser. Keep this page open until answers are saved.'); }
@@ -200,6 +203,10 @@ export function ExamProvider({ children }: { children: ReactNode }) {
   const mathStarting = useRef(false);
   const submit = useCallback(async () => {
     const active = attemptRef.current; if (!active || active.progress.phase !== 'in-progress') return;
+    if (scheduleRef.current && anchor.current.server + performance.now() - anchor.current.local >= Date.parse(scheduleRef.current.entryClosesAt)) {
+      applyAttempt(setResponse(await api.getAttempt(active.id)));
+      return;
+    }
     const timeLeft = Date.parse(active.progress.deadlineAt) - (anchor.current.server + performance.now() - anchor.current.local);
     if (timeLeft > 0) { await pump(); if (queue.current.size) throw new Error('Answers are not saved yet. Retry saving before submitting.'); }
     const next = setResponse(await api.submitSection(active.id, active.progress.sectionId, { mutationId: mutationId(`submit:${active.progress.sectionId}`) }));
@@ -213,10 +220,10 @@ export function ExamProvider({ children }: { children: ReactNode }) {
   }, [api, applyAttempt, pump, setResponse]);
   const expiring = useRef(false);
   useEffect(() => {
-    if (attempt?.progress.phase !== 'in-progress' || now < Date.parse(attempt.progress.deadlineAt) || expiring.current) return;
+    if (attempt?.progress.phase !== 'in-progress' || now < examDeadline(attempt.progress.deadlineAt, schedule?.entryClosesAt) || expiring.current) return;
     expiring.current = true;
     void submit().catch((failure) => setError(errorMessage(failure))).finally(() => { window.setTimeout(() => { expiring.current = false; }, 4000); });
-  }, [attempt, now, submit]);
+  }, [attempt, now, schedule?.entryClosesAt, submit]);
   useEffect(() => {
     if (attempt?.progress.phase !== 'instructions' || attempt.progress.sectionId !== 'math' || mathStarting.current) return;
     mathStarting.current = true;

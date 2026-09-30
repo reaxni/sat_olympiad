@@ -14,6 +14,7 @@ import { NumericDirections } from '../components/NumericDirections';
 import { arrangeReadingQuestion } from './readingLayout';
 import { ModuleLoadingScreen } from './ModuleLoadingScreen';
 import { formatDuration } from './formatDuration';
+import { examDeadline } from './deadline';
 
 const emptyTools: QuestionTools = { notes: '', highlights: [], eliminatedChoiceIds: [] };
 type Selection = Omit<TextHighlight, 'id' | 'color'>;
@@ -53,7 +54,7 @@ export function TestWorkspace() {
   }, [exam.content?.section.id]);
   const content = exam.content; const attempt = exam.attempt;
   if (!content || !attempt || attempt.progress.phase !== 'in-progress') return <><ModuleLoadingScreen math={attempt?.progress.phase === 'in-progress' && attempt.progress.sectionId === 'math'} />{exam.error && <div className="module-loading-error"><Notice tone="error" title="Questions unavailable">{exam.error}<Button onClick={() => void exam.refresh()}>Reconnect</Button></Notice></div>}</>;
-  const math = content.section.id === 'math'; const remaining = Math.max(0, Date.parse(attempt.progress.deadlineAt) - exam.now);
+  const math = content.section.id === 'math'; const remaining = Math.max(0, examDeadline(attempt.progress.deadlineAt, exam.schedule?.entryClosesAt) - exam.now);
   const question = content.slots.find((slot) => slot.position === position)?.question;
   const readingDisplay = !math && question ? arrangeReadingQuestion(question) : null;
   const readingMedia = readingDisplay?.media ?? [];

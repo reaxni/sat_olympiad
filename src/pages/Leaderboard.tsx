@@ -14,11 +14,11 @@ export function LeaderboardPage() {
       try { const schedule = await api.getSchedule({ signal: controller.signal }); const response = await api.getLeaderboard(schedule.data.id, { signal: controller.signal }); if (!controller.signal.aborted) { setData(response.data); setError(''); } }
       catch (failure) { if (!controller.signal.aborted) { setError(errorMessage(failure)); setData(null); } }
     };
-    void load(); const timer = window.setInterval(() => void load(), 15_000);
+    void load(); const timer = window.setInterval(() => void load(), 5000);
     return () => { controller.abort(); clearInterval(timer); };
   }, [api, retry]);
   const released = data?.results.status === 'released';
-  return <div className="page-container ranking-page"><div className="page-heading"><div><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Ranking</h1><p>{released ? 'Results released by the organizer. Ties are ordered by time taken.' : 'Registered participants. Ranks, scores, and times appear after release.'}</p></div><Link className="button button--secondary" to="/dashboard">Dashboard</Link></div>
+  return <div className="page-container ranking-page"><div className="page-heading"><div><p className="eyebrow">1609 SAT OLYMPIAD</p><h1>Ranking</h1><p>{released ? 'Final scores and rankings. Ties are ordered by time taken.' : 'Registered participants. Ranks, scores, and times appear when the exam closes.'}</p></div><Link className="button button--secondary" to="/dashboard">Dashboard</Link></div>
     {error ? <Notice tone="error" title="Leaderboard unavailable">{error}<div><Button variant="secondary" onClick={() => setRetry((v) => v + 1)}>Try again</Button></div></Notice> : !data ? <LoadingState label="Loading participants…" /> : <>
       {!released && <Notice title="Results not released">Only participant names and grades are available.</Notice>}
       <Card className="leaderboard-card"><div className="card-heading"><h2>{released ? 'Released results' : 'Registered participants'}</h2><span>{data.participants.length} participants</span></div>

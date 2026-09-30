@@ -60,6 +60,24 @@ describe('email flow', () => {
   });
 });
 describe('fixed exam and release boundaries', () => {
+  it('ends a partial exam at the shared close and releases ranks without releasing keys', async () => {
+    vi.stubEnv('VITE_MOCK_CLOSE_DELAY_SECONDS', '60');
+    const api = createMockApi(); const id = await begin(api);
+    const schedule = (await api.getSchedule()).data;
+    const active = (await api.getAttempt(id)).data;
+    expect(active.progress.phase === 'in-progress' && active.progress.deadlineAt).toBe(schedule.entryClosesAt);
+    await api.saveAnswer(id, 'reading-writing-1', { value: { kind: 'choice', choiceId: 'a' }, markedForReview: false, expectedRevision: 0, mutationId: 'before-close' });
+    expect((await api.getLeaderboard(schedule.id)).data.results.status).toBe('locked');
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(schedule.entryClosesAt));
+    // Ranking also finalizes an attempt without a browser submitting it.
+    const ranking = (await api.getLeaderboard(schedule.id)).data.results;
+    expect(ranking.status).toBe('released');
+    if (ranking.status === 'released') expect(ranking.data[0]?.rank).toBe(1);
+    expect((await api.getAttempt(id)).data.progress).toEqual({ phase: 'completed', completedAt: schedule.entryClosesAt });
+    await expect(api.saveAnswer(id, 'reading-writing-1', { value: null, markedForReview: false, expectedRevision: 1, mutationId: 'after-close' })).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect((await api.getReview(id)).data.status).toBe('locked');
+    await expect(api.startSection(id, 'math', { mutationId: 'late-start' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
   it('blocks early entry and supplies only the current section with exact counts and duration', async () => {
     vi.stubEnv('VITE_MOCK_SCENARIO', 'countdown'); vi.stubEnv('VITE_MOCK_OPEN_DELAY_SECONDS', '120');
     const api = createMockApi(); await login(api); const schedule = await api.getSchedule();
