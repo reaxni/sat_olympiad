@@ -32,7 +32,7 @@ export function Auth() {
   const mock = state.status === 'ready' && state.service.environment === 'development';
   return <main className="auth-layout">
     <section className="auth-story" aria-label="1609 SAT Olympiad">
-      <div className="wordmark"><img className="brand-logo" src="/assets/logo1609.jpg" alt="" />1609 SAT Olympiad</div>
+      <div className="wordmark"><img className="brand-logo" src="/assets/1609logo.jpeg" alt="" />1609 SAT Olympiad</div>
       <div className="auth-story-copy campaign-story"><p className="eyebrow">ВЫБОРЫ ПРЕЗИДЕНТА ШКОЛЫ</p><h1>Твой голос<br /><em>имеет значение.</em></h1><p className="campaign-lead">Участвуй в школьных выборах: познакомься с кандидатами и проголосуй за того, кому доверяешь будущее школы.</p>
         <article className="campaign-card campaign-card--combined" aria-label="Jurek and Adele">
           <div className="campaign-candidate"><img src={jurekArtwork} alt="Арт с именем Jurek" width="180" height="180" /><h2>Vote for Jurek</h2></div>
