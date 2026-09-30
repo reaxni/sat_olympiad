@@ -19,13 +19,25 @@ async function begin(api: ExamApi) {
   await api.startSection(attempt.data.id, 'reading-writing', { mutationId: 'start-rw' }); return attempt.data.id;
 }
 describe('email flow', () => {
+  it.each(['123456', '123456789012'])('accepts a boundary password for signup and signin: %s', async (password) => {
+    const api = createMockApi();
+    const input = { email: 'boundary@example.test', password };
+    const created = await api.passwordSession({ purpose: 'sign-up', name: 'Boundary Student', grade: 10, ...input });
+    await api.signOut();
+    expect((await api.passwordSession({ purpose: 'sign-in', ...input })).data.id).toBe(created.data.id);
+  });
+  it.each(['12345', '1234567890123'])('rejects a password outside 6–12 characters: %s', async (password) => {
+    const api = createMockApi();
+    await expect(api.passwordSession({ purpose: 'sign-up', email: 'boundary@example.test', name: 'Boundary Student', grade: 10, password })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(api.passwordSession({ purpose: 'sign-in', email: 'learner@example.test', password })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
   it('saves a new email with password and rejects the wrong password', async () => {
     const api = createMockApi();
-    const created = await api.passwordSession({ purpose: 'sign-up', name: 'Test Learner', grade: 10, email: ' NEW@example.test ', password: 'long-test-password' });
+    const created = await api.passwordSession({ purpose: 'sign-up', name: 'Test Learner', grade: 10, email: ' NEW@example.test ', password: 'test-pass123' });
     expect(created.data.email).toBe('new@example.test');
     await api.signOut();
-    await expect(api.passwordSession({ purpose: 'sign-in', email: 'new@example.test', password: 'wrong-password' })).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
-    expect((await api.passwordSession({ purpose: 'sign-in', email: 'new@example.test', password: 'long-test-password' })).data.id).toBe(created.data.id);
+    await expect(api.passwordSession({ purpose: 'sign-in', email: 'new@example.test', password: 'wrong-pass' })).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect((await api.passwordSession({ purpose: 'sign-in', email: 'new@example.test', password: 'test-pass123' })).data.id).toBe(created.data.id);
   });
   it('can be returned from the asynchronous adapter factory without becoming a thenable', async () => {
     const api = await Promise.resolve(createMockApi());

@@ -16,10 +16,10 @@ export function createMockApi(): ExamApi {
   const scenario = import.meta.env.VITE_MOCK_SCENARIO ?? 'countdown';
   const rate = Math.max(1, Number(import.meta.env.VITE_MOCK_CLOCK_RATE) || 1);
   const delay = Math.max(0, Number(import.meta.env.VITE_MOCK_OPEN_DELAY_SECONDS ?? 60));
-  const storageKey = `1609-mock-v4:${scenario}:${rate}:${delay}`;
+  const storageKey = `1609-mock-v5:${scenario}:${rate}:${delay}`;
   const fresh = (): MockState => ({ epoch: Date.now(), realEpoch: Date.now(), user: null,
     students: [{ id: 'sample-student', name: 'Alex Morgan', grade: 10, email: 'learner@example.test' }],
-    passwords: { 'learner@example.test': 'sample-password-123' }, challenges: {}, attempts: {}, answers: {}, mutations: {}, violations: {}, attemptStarts: {} });
+    passwords: { 'learner@example.test': 'sat1609pass' }, challenges: {}, attempts: {}, answers: {}, mutations: {}, violations: {}, attemptStarts: {} });
   let state = fresh();
   try { const saved = sessionStorage.getItem(storageKey); if (saved) state = JSON.parse(saved) as MockState; } catch { /* In-memory fallback when storage is disabled. */ }
   const persist = () => { try { sessionStorage.setItem(storageKey, JSON.stringify(state)); } catch { /* The current tab still works. */ } };
@@ -81,7 +81,7 @@ export function createMockApi(): ExamApi {
     getStudent: (o) => respond(state.user, o?.signal),
     passwordSession: async (input, o) => {
       const normalized = input.email.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || input.password.length < 12 || input.password.length > 72) throw new ApiError('VALIDATION_ERROR', 'Enter a valid email and a password of 12 to 72 characters.', 400);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || input.password.length < 6 || input.password.length > 12) throw new ApiError('VALIDATION_ERROR', 'Enter a valid email and a password of 6 to 12 characters.', 400);
       let user = state.students.find((student) => student.email === normalized);
       if (input.purpose === 'sign-up') {
         if (!input.name.trim() || !Number.isInteger(input.grade) || input.grade < 7 || input.grade > 12) throw new ApiError('VALIDATION_ERROR', 'Enter a name and grade from 7 to 12.', 400);

@@ -57,7 +57,7 @@ export function Auth() {
         <form onSubmit={submit} aria-busy={busy}>
           {mode === 'sign-up' && <><TextField label="Full name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={100} required disabled={busy} /><label className="field"><span>Grade</span><select value={grade} onChange={(e) => setGrade(e.target.value)} required disabled={busy}><option value="">Select grade</option>{[7, 8, 9, 10, 11, 12].map((value) => <option key={value} value={value}>{value}</option>)}</select></label></>}
           <TextField label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" maxLength={254} placeholder="you@example.com" required disabled={busy} />
-          <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} minLength={12} maxLength={72} required disabled={busy} hint={mode === 'sign-up' ? 'Use 12 to 72 characters.' : undefined} />
+          <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} minLength={6} maxLength={12} required disabled={busy} hint="Use 6 to 12 characters." />
           {error && <Notice tone="error" title="Please try again">{error}</Notice>}
           <Button type="submit" className="wide" disabled={busy}>{busy ? 'Please wait…' : mode === 'sign-in' ? 'Sign in' : 'Create account'} <span aria-hidden="true">↗</span></Button>
         </form>
