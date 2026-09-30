@@ -41,7 +41,7 @@ export type GraphPoint = { x: number; y: number };
 export type ContentBlock =
   | { kind: 'text'; text: string; marks?: TextMark[] }
   | { kind: 'math'; latex: string; accessibleText: string }
-  | { kind: 'image'; url: string; alt: string; caption?: string; width?: number; height?: number }
+  | { kind: 'image'; url: string; alt: string; caption?: string; width?: number; height?: number; showAltAsCaption?: boolean; zoomable?: boolean }
   | { kind: 'table'; caption: string; headers: string[]; rows: string[][] }
   | { kind: 'list'; items: string[]; ordered?: boolean }
   | { kind: 'graph'; title: string; xLabel: string; yLabel: string; xMin: number; xMax: number; yMin: number; yMax: number; points: GraphPoint[]; lines?: { from: GraphPoint; to: GraphPoint }[] };
