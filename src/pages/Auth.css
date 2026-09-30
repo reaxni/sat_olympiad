@@ -36,7 +36,17 @@
   box-shadow: 0 14px 36px #80021a30;
 }
 .auth-layout .campaign-card h2 { color: var(--auth-burgundy); }
-.auth-layout .campaign-card img { background: var(--auth-beige); }
+.auth-layout .campaign-card img {
+  width: min(100%, 180px);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: var(--auth-beige);
+}
+.auth-layout .campaign-candidate { gap: 20px; }
+@media (max-width: 600px) {
+  .auth-layout .campaign-card img { width: min(100%, 120px); }
+}
 
 .auth-layout .auth-panel { background: var(--auth-cream); }
 .auth-layout .auth-form-wrap h2,
